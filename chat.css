@@ -82,6 +82,15 @@ body {
   flex-wrap: wrap;
 }
 
+.top-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  flex: none;
+}
+.top-name { display: flex; flex-direction: column; line-height: 1.2; }
+.top-sub { font-size: 13px; color: var(--muted); }
+
 .top h1 {
   margin: 0;
   font-size: 22px;
@@ -185,7 +194,42 @@ body {
   align-self: flex-start;
   background: var(--bot-bg);
 }
-.msg-pending { color: var(--muted); }
+.msg-pending {
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+.think-bulb { display: inline-flex; flex: none; color: var(--accent); animation: think-bulb 1.6s ease-in-out infinite; }
+.think-text { animation: think-text 1.6s ease-in-out infinite; }
+.think-dots { display: inline-flex; gap: 4px; }
+.think-dots i {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent); opacity: 0.25;
+  animation: think-dot 1.2s ease-in-out infinite;
+}
+.think-dots i:nth-child(2) { animation-delay: 0.2s; }
+.think-dots i:nth-child(3) { animation-delay: 0.4s; }
+.think-more { flex-basis: 100%; font-size: 14px; }
+@keyframes think-bulb { 0%, 100% { opacity: 0.45; transform: scale(0.92); } 50% { opacity: 1; transform: scale(1.06); } }
+@keyframes think-text { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+@keyframes think-dot { 0%, 80%, 100% { opacity: 0.25; } 40% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .think-bulb, .think-text, .think-dots i { animation: none; }
+  .think-dots i { opacity: 0.6; }
+}
+
+.msg-sorry {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--warn-bg);
+  color: var(--warn-text);
+  border-color: transparent;
+}
+.sorry-icon { display: inline-flex; flex: none; }
+.sorry-text { margin: 0; }
 .msg-error {
   align-self: flex-start;
   background: var(--warn-bg);

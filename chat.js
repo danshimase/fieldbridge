@@ -18,7 +18,7 @@
     TIMEOUT_MS: 30000,          // 30秒で打ち切り（第8.3）
     WARMUP_RETRIES: 3,          // ウォームアップの再試行回数（第6.8）
     WARMUP_RETRY_MS: 4000,      // 再試行の間隔
-    VERSION: '2026-11-05.6',    // 画面の版（index.html の ?v= と合わせる）
+    VERSION: '2026-11-05.7',    // 画面の版（index.html の ?v= と合わせる）
     DB_NAME: 'fieldbridge',     // 接続情報の保存先。見学ガイド（tour-guide）とは別
     STORE: 'kv',
     KEY: 'qa',
@@ -39,7 +39,10 @@
     rate: '質問回数の上限に達したか、混み合っています。しばらくしてからもう一度お試しください。',
     noConfig: '接続の設定がありません。右上の「設定」から窓口 URL とトークンを入れてください。',
     photoExpired: '写真の表示期限が切れました。もう一度質問してください。',
-    noRecord: '資料に記録がありません。'
+    noRecord: '資料に記録がありません。',
+    sorry: 'ごめんなさい。この内容は、資料に記録がありません。',
+    thinking: '資料を調べて考えています',
+    thinkingMore: 'もう少しお待ちください'
   };
 
   // ------------------------------------------------------------------
@@ -229,13 +232,48 @@
     scrollToEnd();
   }
 
+  // 考え中の表示（電球がやわらかく点滅。実際の進み具合は表示しない）
+  const BULB_SVG =
+    '<svg viewBox="188 144 136 156" width="24" height="28" aria-hidden="true" focusable="false">' +
+    '<path d="M226 262 C226 246 198 236 198 206 A58 58 0 1 1 314 206 C314 236 286 246 286 262 Z" fill="currentColor"/>' +
+    '<circle cx="256" cy="206" r="26" fill="#fff" fill-opacity="0.55"/>' +
+    '<rect x="228" y="268" width="56" height="12" rx="6" fill="currentColor"/>' +
+    '<rect x="238" y="284" width="36" height="10" rx="5" fill="currentColor"/></svg>';
+
   function addPending() {
     clearEmptyNote();
-    const n = el('div', 'msg msg-bot msg-pending', '回答を作成しています…');
+    const n = el('div', 'msg msg-bot msg-pending');
+    n.setAttribute('role', 'status');
+    const bulb = el('span', 'think-bulb');
+    bulb.innerHTML = BULB_SVG;
+    n.appendChild(bulb);
+    n.appendChild(el('span', 'think-text', MSG.thinking));
+    const dots = el('span', 'think-dots');
+    dots.setAttribute('aria-hidden', 'true');
+    for (let k = 0; k < 3; k += 1) dots.appendChild(document.createElement('i'));
+    n.appendChild(dots);
+    const more = el('span', 'think-more', MSG.thinkingMore);
+    more.hidden = true;
+    n.appendChild(more);
+    n._timer = setTimeout(() => { more.hidden = false; scrollToEnd(); }, 10000);
     logEl.appendChild(n);
     scrollToEnd();
     return n;
   }
+
+  function removePending(n) {
+    if (!n) return;
+    clearTimeout(n._timer);
+    n.remove();
+  }
+
+  const SORRY_SVG =
+    '<svg viewBox="0 0 64 64" width="40" height="40" aria-hidden="true" focusable="false">' +
+    '<circle cx="32" cy="32" r="28" fill="#ffc94d"/>' +
+    '<path d="M17 24 L27 20 M47 24 L37 20" stroke="#7a5200" stroke-width="3" stroke-linecap="round" fill="none"/>' +
+    '<circle cx="24" cy="30" r="3" fill="#7a5200"/><circle cx="40" cy="30" r="3" fill="#7a5200"/>' +
+    '<path d="M23 46 Q32 38 41 46" stroke="#7a5200" stroke-width="3.2" stroke-linecap="round" fill="none"/>' +
+    '<path d="M50 14 C50 14 45 21 45 24 A5 5 0 0 0 55 24 C55 21 50 14 50 14 Z" fill="#4aa3f0"/></svg>';
 
   function addError(text) {
     clearEmptyNote();
@@ -287,7 +325,19 @@
     if (typeof photoDlg.showModal === 'function') photoDlg.showModal();
   }
 
+  function addSorry() {
+    clearEmptyNote();
+    const wrap = el('div', 'msg msg-bot msg-sorry');
+    const ic = el('span', 'sorry-icon');
+    ic.innerHTML = SORRY_SVG;
+    wrap.appendChild(ic);
+    wrap.appendChild(el('p', 'sorry-text', MSG.sorry));
+    logEl.appendChild(wrap);
+    scrollToEnd();
+  }
+
   function addBot(res) {
+    if (res && res.status === 'no_answer') { addSorry(); return; }
     clearEmptyNote();
     const wrap = el('div', 'msg msg-bot');
     const ans = el('div', 'answer');
@@ -599,13 +649,13 @@
 
     try {
       const res = await ask(q, sentHistory);
-      pending.remove();
+      removePending(pending);
       addBot(res);
       history.push({ role: 'user', content: q });
       history.push({ role: 'assistant', content: res.answer });
       history = history.slice(-CONFIG.HISTORY_TURNS * 2);
     } catch (e) {
-      pending.remove();
+      removePending(pending);
       addError(userMessage(e && e.kind));
       if (inputEl.value === '') inputEl.value = q; // 送れなかった質問を戻す
     } finally {
