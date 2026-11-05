@@ -18,9 +18,11 @@
     TIMEOUT_MS: 30000,          // 30秒で打ち切り（第8.3）
     WARMUP_RETRIES: 3,          // ウォームアップの再試行回数（第6.8）
     WARMUP_RETRY_MS: 4000,      // 再試行の間隔
-    DB_NAME: 'tour-guide',      // 見学ガイドと共通（第8.1）
+    VERSION: '2026-11-05.3',    // 画面の版（index.html の ?v= と合わせる）
+    DB_NAME: 'fieldbridge',     // 接続情報の保存先。見学ガイド（tour-guide）とは別
     STORE: 'kv',
     KEY: 'qa',
+    PIN_DB: 'tour-guide',       // PIN だけ見学ガイドの保存先を読む（読み取りのみ）
     PIN_KEY: 'pin',             // 見学ガイドの「編集用PIN」と共通
     DEFAULT_PIN: '0000',        // 見学ガイドの app.js と同じ初期値
     ENC_FORMAT: 'tour-enc-v1',  // 見学ガイドの暗号化ファイルと同じ形式
@@ -333,10 +335,10 @@
   // ------------------------------------------------------------------
   // 保存（IndexedDB：見学ガイドと同じ tour-guide / kv / qa）
   // ------------------------------------------------------------------
-  function openDb() {
+  function openDb(name) {
     return new Promise((resolve, reject) => {
       if (!window.indexedDB) { reject(new Error('indexedDB unavailable')); return; }
-      const r = indexedDB.open(CONFIG.DB_NAME);
+      const r = indexedDB.open(name || CONFIG.DB_NAME);
       r.onupgradeneeded = () => {
         const db = r.result;
         if (!db.objectStoreNames.contains(CONFIG.STORE)) db.createObjectStore(CONFIG.STORE);
@@ -354,8 +356,8 @@
     });
   }
 
-  function kvRequest(mode, fn) {
-    return openDb().then((db) => new Promise((resolve, reject) => {
+  function kvRequest(mode, fn, dbName) {
+    return openDb(dbName).then((db) => new Promise((resolve, reject) => {
       const tx = db.transaction(CONFIG.STORE, mode);
       const req = fn(tx.objectStore(CONFIG.STORE));
       tx.oncomplete = () => { db.close(); resolve(req ? req.result : undefined); };
@@ -713,7 +715,7 @@
   async function checkPin() {
     let pin = CONFIG.DEFAULT_PIN;
     try {
-      const v = await kvRequest('readonly', (s) => s.get(CONFIG.PIN_KEY));
+      const v = await kvRequest('readonly', (s) => s.get(CONFIG.PIN_KEY), CONFIG.PIN_DB);
       if (typeof v === 'string' && v !== '') pin = v;
     } catch (e) { /* 読めなければ初期値 */ }
     const ok = await promptSecret({
@@ -800,6 +802,7 @@
 
   function openSettings() {
     settingsInfo.textContent = describeConnection();
+    $('versionInfo').textContent = '画面の版：' + CONFIG.VERSION;
     endpointInput.value = qa && qa.endpoint ? qa.endpoint : '';
     tokenInput.value = '';
     tokenInput.placeholder = qa && qa.token ? '変更するときだけ入力' : '';
@@ -831,7 +834,7 @@
   }
 
   async function onDelete() {
-    if (!window.confirm('接続情報を削除します。見学ガイド側の接続も消えます。よろしいですか？')) return;
+    if (!window.confirm('この端末の接続情報を削除します。よろしいですか？')) return;
     await deleteQa();
     endpointInput.value = '';
     tokenInput.value = '';

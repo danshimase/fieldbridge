@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="robots" content="noindex">
 <title>FieldBridge</title>
-<link rel="stylesheet" href="chat.css">
+<link rel="stylesheet" href="chat.css?v=2026-11-05.3">
 </head>
 <body>
 
@@ -50,7 +50,8 @@
     <label class="field">ラベル
       <input type="text" id="labelInput" autocomplete="off">
     </label>
-    <p class="hint">この端末の保存先は見学ガイドと共通です。削除すると見学ガイド側の接続も消えます。</p>
+    <p class="hint">接続情報の保存先は、見学ガイドとは別です。削除しても見学ガイドには影響しません。</p>
+    <p id="versionInfo" class="hint"></p>
     <p id="settingsMsg" class="hint" role="status"></p>
     <div class="dlg-actions">
       <button type="button" id="saveBtn" class="btn btn-primary">保存</button>
@@ -81,6 +82,6 @@
   </div>
 </dialog>
 
-<script src="chat.js"></script>
+<script src="chat.js?v=2026-11-05.3"></script>
 </body>
 </html>
