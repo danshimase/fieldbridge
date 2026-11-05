@@ -376,3 +376,5 @@ body {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
 }
 .toast[hidden] { display: none; }
+
+.hint.ok { color: var(--ok); font-weight: 600; font-size: 16px; }

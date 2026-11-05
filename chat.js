@@ -18,7 +18,7 @@
     TIMEOUT_MS: 30000,          // 30秒で打ち切り（第8.3）
     WARMUP_RETRIES: 3,          // ウォームアップの再試行回数（第6.8）
     WARMUP_RETRY_MS: 4000,      // 再試行の間隔
-    VERSION: '2026-11-05.4',    // 画面の版（index.html の ?v= と合わせる）
+    VERSION: '2026-11-05.5',    // 画面の版（index.html の ?v= と合わせる）
     DB_NAME: 'fieldbridge',     // 接続情報の保存先。見学ガイド（tour-guide）とは別
     STORE: 'kv',
     KEY: 'qa',
@@ -774,8 +774,13 @@
     if (!conn) return;
 
     await saveQa(conn);
-    settingsDlg.close();
-    showToast(savedText());
+    endpointInput.value = conn.endpoint;
+    tokenInput.value = '';
+    tokenInput.placeholder = '変更するときだけ入力';
+    labelInput.value = conn.label;
+    settingsInfo.textContent = describeConnection();
+    updateSaveState();
+    showResult(memoryOnly ? savedText() : '✓ 「' + file.name + '」を読み込んで保存しました。');
     warmup();
   }
 
@@ -808,6 +813,12 @@
       (MOCK ? '。いまは仮の応答モードのため、この接続は使いません。' : '');
   }
 
+  function showResult(text) {
+    settingsMsg.className = 'hint ok';
+    settingsMsg.textContent = text;
+    settingsMsg.scrollIntoView({ block: 'nearest' });
+  }
+
   // 手入力の欄：変更があり、保存できる内容のときだけ「保存して閉じる」を押せる
   function manualState() {
     const endpoint = endpointInput.value.trim();
@@ -828,6 +839,7 @@
   function updateSaveState() {
     const s = manualState();
     saveBtn.disabled = !(s.changed && !s.problem);
+    settingsMsg.className = 'hint err';
     settingsMsg.textContent = s.problem;
   }
 
