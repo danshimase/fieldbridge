@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="robots" content="noindex">
+<title>FieldBridge</title>
+<link rel="stylesheet" href="chat.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="top-title">
+    <h1>FieldBridge</h1>
+    <span id="status" class="status status-wait" role="status" aria-live="polite">準備中</span>
+    <span id="mockBadge" class="badge" hidden>仮の応答</span>
+  </div>
+  <div class="top-actions">
+    <button type="button" id="resetBtn" class="btn">会話をリセット</button>
+    <button type="button" id="settingsBtn" class="btn">設定</button>
+  </div>
+</header>
+
+<p class="notice">AI が資料をもとに答えています</p>
+<p id="offlineBanner" class="offline" hidden>通信できません。接続が戻ると送信できます。</p>
+
+<main id="log" class="log" aria-live="polite"></main>
+
+<form id="form" class="composer" autocomplete="off">
+  <label for="input" class="sr-only">質問</label>
+  <textarea id="input" rows="2" maxlength="200" placeholder="質問を入力（200字まで）"></textarea>
+  <button type="submit" id="sendBtn" class="btn btn-primary">送信</button>
+</form>
+
+<dialog id="settingsDlg" class="dlg">
+  <form method="dialog" id="settingsForm">
+    <h2>設定</h2>
+    <p id="settingsInfo" class="hint"></p>
+    <label class="field">窓口 URL
+      <input type="url" id="endpointInput" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://…">
+    </label>
+    <label class="field">トークン
+      <input type="password" id="tokenInput" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off">
+    </label>
+    <label class="field">ラベル
+      <input type="text" id="labelInput" autocomplete="off">
+    </label>
+    <p class="hint">この端末の保存先は見学ガイドと共通です。削除すると見学ガイド側の接続も消えます。</p>
+    <p id="settingsMsg" class="hint" role="status"></p>
+    <div class="dlg-actions">
+      <button type="button" id="saveBtn" class="btn btn-primary">保存</button>
+      <button type="button" id="deleteBtn" class="btn btn-danger">削除</button>
+      <button type="button" id="closeSettingsBtn" class="btn">閉じる</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="photoDlg" class="dlg dlg-photo">
+  <img id="photoLarge" alt="">
+  <p id="photoCaption" class="photo-caption"></p>
+  <div class="dlg-actions">
+    <button type="button" id="closePhotoBtn" class="btn">閉じる</button>
+  </div>
+</dialog>
+
+<script src="chat.js"></script>
+</body>
+</html>
