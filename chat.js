@@ -18,7 +18,7 @@
     TIMEOUT_MS: 30000,          // 30秒で打ち切り（第8.3）
     WARMUP_RETRIES: 3,          // ウォームアップの再試行回数（第6.8）
     WARMUP_RETRY_MS: 4000,      // 再試行の間隔
-    VERSION: '2026-11-05.7',    // 画面の版（index.html の ?v= と合わせる）
+    VERSION: '2026-11-05.9',    // 画面の版（index.html の ?v= と合わせる）
     DB_NAME: 'fieldbridge',     // 接続情報の保存先。見学ガイド（tour-guide）とは別
     STORE: 'kv',
     KEY: 'qa',
@@ -223,7 +223,45 @@
 
   function showEmptyNote() {
     logEl.textContent = '';
-    logEl.appendChild(el('p', 'empty', '工場の資料をもとに質問できます。質問を入力して「送信」を押してください。'));
+    const box = el('div', 'empty');
+    const img = document.createElement('img');
+    img.src = 'icon.svg';
+    img.alt = '';
+    img.width = 72;
+    img.height = 72;
+    box.appendChild(img);
+    box.appendChild(el('p', '', '工場の資料から調べます。'));
+    box.appendChild(el('p', '', '質問を入力して「送信」を押してください。'));
+    logEl.appendChild(box);
+  }
+
+  // ------------------------------------------------------------------
+  // 表示の明るさ（明るい／暗い）。画面上部のボタンで切り替え、端末の設定には従わない。
+  // 保存先は localStorage の専用キーのみ（見学ガイドとは別）
+  // ------------------------------------------------------------------
+  const THEME_KEY = 'fieldbridge-theme';
+  const THEME_COLOR = { light: '#ffffff', dark: '#161c24' };
+
+  function getTheme() {
+    try {
+      return localStorage.getItem(THEME_KEY) === 'dark' ? 'dark' : 'light';
+    } catch (e) {
+      return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+    }
+  }
+
+  function applyTheme(t) {
+    document.documentElement.setAttribute('data-theme', t);
+    const meta = document.getElementById('themeColorMeta');
+    if (meta) meta.setAttribute('content', THEME_COLOR[t]);
+    const btn = document.getElementById('themeBtn');
+    if (btn) btn.setAttribute('aria-label', t === 'dark' ? '明るい表示にする' : '暗い表示にする');
+  }
+
+  function toggleTheme() {
+    const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    try { localStorage.setItem(THEME_KEY, next); } catch (e) { /* 保存できなくても、この画面の間は切り替わる */ }
+    applyTheme(next);
   }
 
   function addUser(text) {
@@ -239,6 +277,8 @@
     '<circle cx="256" cy="206" r="26" fill="#fff" fill-opacity="0.55"/>' +
     '<rect x="228" y="268" width="56" height="12" rx="6" fill="currentColor"/>' +
     '<rect x="238" y="284" width="36" height="10" rx="5" fill="currentColor"/></svg>';
+
+  const AVATAR_SVG = BULB_SVG.replace('width="24" height="28"', 'width="15" height="18"');
 
   function addPending() {
     clearEmptyNote();
@@ -362,7 +402,12 @@
       wrap.appendChild(grid);
     }
 
-    logEl.appendChild(wrap);
+    const row = el('div', 'row-bot');
+    const av = el('span', 'avatar');
+    av.innerHTML = AVATAR_SVG;
+    row.appendChild(av);
+    row.appendChild(wrap);
+    logEl.appendChild(row);
     scrollToEnd();
   }
 
@@ -934,6 +979,8 @@
   });
   inputEl.addEventListener('input', updateControls);
   resetBtn.addEventListener('click', resetConversation);
+  $('themeBtn').addEventListener('click', toggleTheme);
+
   settingsBtn.addEventListener('click', requestSettings);
   importBtn.addEventListener('click', () => connFile.click());
   connFile.addEventListener('change', onConnFile);
@@ -945,6 +992,8 @@
   photoDlg.addEventListener('close', () => { photoLarge.removeAttribute('src'); });
   window.addEventListener('online', updateControls);
   window.addEventListener('offline', updateControls);
+
+  applyTheme(getTheme());
 
   (async () => {
     mockBadge.hidden = !MOCK;
