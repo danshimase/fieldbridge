@@ -775,17 +775,27 @@
     labelInput.value = conn.label;
     settingsInfo.textContent = describeConnection();
     settingsMsg.textContent = memoryOnly
-      ? '読み込みました。この端末に保存できなかったため、画面を閉じるまでの一時的な保存です。'
-      : '読み込んで保存しました。';
+      ? '「' + file.name + '」を読み込みました。この端末に保存できなかったため、画面を閉じるまでの一時的な保存です。'
+      : '「' + file.name + '」を読み込んで保存しました。（選択欄は「ファイル未選択」に戻ります）';
     warmup();
   }
 
   function describeConnection() {
-    if (MOCK) return '現在は仮の応答で動いています（実際の窓口には送信しません）。';
-    if (!qa || !qa.token) return '接続は未設定です。';
+    const note = MOCK ? '（いまは仮の応答で動いているため、この接続は使っていません）' : '';
+    if (!qa || !qa.token) {
+      return MOCK
+        ? '保存されている接続はありません。現在は仮の応答で動いています。'
+        : '接続は未設定です。';
+    }
     const tail = String(qa.token).slice(-4);
     const label = qa.label ? qa.label : '（ラベルなし）';
-    return '現在の接続：' + label + ' ／ トークン末尾 ' + tail;
+    return '保存されている接続：' + label + ' ／ トークン末尾 ' + tail + note;
+  }
+
+  function nowText() {
+    const d = new Date();
+    const p = (n) => String(n).padStart(2, '0');
+    return p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
   }
 
   function openSettings() {
@@ -814,7 +824,7 @@
     await saveQa({ endpoint: endpoint, token: token, label: label });
     settingsMsg.textContent = memoryOnly
       ? 'この端末に保存できなかったため、画面を閉じるまでの一時的な保存です。'
-      : '保存しました。';
+      : '保存しました（' + nowText() + '）。';
     settingsInfo.textContent = describeConnection();
     tokenInput.value = '';
     warmup();
