@@ -12,13 +12,13 @@
   // 設定
   // ------------------------------------------------------------------
   const CONFIG = {
-    MOCK: true,                 // true: 仮の応答 / false: 窓口 URL へ POST
+    MOCK: false,                // true: 仮の応答 / false: 窓口 URL へ POST
     MAX_Q: 200,                 // 質問の最大文字数（第6.3）
     HISTORY_TURNS: 3,           // 送る履歴は直近3往復まで（第6.2）
     TIMEOUT_MS: 30000,          // 30秒で打ち切り（第8.3）
     WARMUP_RETRIES: 3,          // ウォームアップの再試行回数（第6.8）
     WARMUP_RETRY_MS: 4000,      // 再試行の間隔
-    VERSION: '2026-11-05.5',    // 画面の版（index.html の ?v= と合わせる）
+    VERSION: '2026-11-05.6',    // 画面の版（index.html の ?v= と合わせる）
     DB_NAME: 'fieldbridge',     // 接続情報の保存先。見学ガイド（tour-guide）とは別
     STORE: 'kv',
     KEY: 'qa',
