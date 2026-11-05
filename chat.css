@@ -516,3 +516,12 @@ body {
 .toast[hidden] { display: none; }
 
 .hint.ok { color: var(--ok); font-weight: 600; font-size: 16px; }
+
+.msg-note {
+  align-self: flex-start;
+  max-width: min(46em, 92%);
+  padding: 0 6px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.msg-note strong { color: var(--text); font-weight: 600; }

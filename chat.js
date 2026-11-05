@@ -18,7 +18,7 @@
     TIMEOUT_MS: 30000,          // 30秒で打ち切り（第8.3）
     WARMUP_RETRIES: 3,          // ウォームアップの再試行回数（第6.8）
     WARMUP_RETRY_MS: 4000,      // 再試行の間隔
-    VERSION: '2026-11-05.9',    // 画面の版（index.html の ?v= と合わせる）
+    VERSION: '2026-11-06.1',    // 画面の版（index.html の ?v= と合わせる）
     DB_NAME: 'fieldbridge',     // 接続情報の保存先。見学ガイド（tour-guide）とは別
     STORE: 'kv',
     KEY: 'qa',
@@ -365,6 +365,18 @@
     if (typeof photoDlg.showModal === 'function') photoDlg.showModal();
   }
 
+  // 音声入力の聞き間違いを直して調べたとき、回答の前に知らせる（黙って直さない）
+  function addNote(fix) {
+    if (!fix || typeof fix.from !== 'string' || typeof fix.to !== 'string') return;
+    if (!fix.from || !fix.to || fix.from.length > 200 || fix.to.length > 200) return;
+    clearEmptyNote();
+    const note = el('div', 'msg-note');
+    note.appendChild(document.createTextNode('「' + fix.from + '」を「'));
+    note.appendChild(el('strong', '', fix.to));
+    note.appendChild(document.createTextNode('」として調べました'));
+    logEl.appendChild(note);
+  }
+
   function addSorry() {
     clearEmptyNote();
     const wrap = el('div', 'msg msg-bot msg-sorry');
@@ -695,6 +707,7 @@
     try {
       const res = await ask(q, sentHistory);
       removePending(pending);
+      addNote(res.interpreted);
       addBot(res);
       history.push({ role: 'user', content: q });
       history.push({ role: 'assistant', content: res.answer });
