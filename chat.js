@@ -18,7 +18,7 @@
     TIMEOUT_MS: 30000,          // 30秒で打ち切り（第8.3）
     WARMUP_RETRIES: 3,          // ウォームアップの再試行回数（第6.8）
     WARMUP_RETRY_MS: 4000,      // 再試行の間隔
-    VERSION: '2026-11-05.3',    // 画面の版（index.html の ?v= と合わせる）
+    VERSION: '2026-11-05.4',    // 画面の版（index.html の ?v= と合わせる）
     DB_NAME: 'fieldbridge',     // 接続情報の保存先。見学ガイド（tour-guide）とは別
     STORE: 'kv',
     KEY: 'qa',
@@ -69,6 +69,9 @@
   const photoCaption = $('photoCaption');
   const closePhotoBtn = $('closePhotoBtn');
   const connFile = $('connFile');
+  const importBtn = $('importBtn');
+  const manualBox = $('manualBox');
+  const toastEl = $('toast');
   const promptDlg = $('promptDlg');
   const promptForm = $('promptForm');
   const promptTitle = $('promptTitle');
@@ -771,14 +774,8 @@
     if (!conn) return;
 
     await saveQa(conn);
-    endpointInput.value = conn.endpoint;
-    tokenInput.value = '';
-    tokenInput.placeholder = '変更するときだけ入力';
-    labelInput.value = conn.label;
-    settingsInfo.textContent = describeConnection();
-    settingsMsg.textContent = memoryOnly
-      ? '「' + file.name + '」を読み込みました。この端末に保存できなかったため、画面を閉じるまでの一時的な保存です。'
-      : '「' + file.name + '」を読み込んで保存しました。（選択欄は「ファイル未選択」に戻ります）';
+    settingsDlg.close();
+    showToast(savedText());
     warmup();
   }
 
@@ -794,10 +791,44 @@
     return '保存されている接続：' + label + ' ／ トークン末尾 ' + tail + note;
   }
 
-  function nowText() {
-    const d = new Date();
-    const p = (n) => String(n).padStart(2, '0');
-    return p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+  // 画面の上に数秒だけ出す通知
+  let toastTimer = null;
+  function showToast(text) {
+    toastEl.textContent = text;
+    toastEl.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { toastEl.hidden = true; }, 6000);
+  }
+
+  function savedText() {
+    if (memoryOnly) return '接続を受け取りましたが、この端末に保存できなかったため、画面を閉じるまでの一時的な保存です。';
+    const tail = String(qa.token).slice(-4);
+    const label = qa.label ? qa.label : '（ラベルなし）';
+    return '接続を保存しました：' + label + '（トークン末尾 ' + tail + '）' +
+      (MOCK ? '。いまは仮の応答モードのため、この接続は使いません。' : '');
+  }
+
+  // 手入力の欄：変更があり、保存できる内容のときだけ「保存して閉じる」を押せる
+  function manualState() {
+    const endpoint = endpointInput.value.trim();
+    const typedToken = tokenInput.value.trim();
+    const label = labelInput.value.trim();
+    const curEndpoint = qa && qa.endpoint ? qa.endpoint : '';
+    const curLabel = qa && qa.label ? qa.label : '';
+    const hasToken = typedToken !== '' || !!(qa && qa.token);
+    const changed = endpoint !== curEndpoint || label !== curLabel || typedToken !== '';
+    let problem = '';
+    if (changed) {
+      if (!/^https:\/\//.test(endpoint)) problem = '窓口 URL は https:// から始まる形で入力してください。';
+      else if (!hasToken) problem = 'トークンを入力してください。';
+    }
+    return { endpoint: endpoint, token: typedToken || (qa && qa.token) || '', label: label, changed: changed, problem: problem };
+  }
+
+  function updateSaveState() {
+    const s = manualState();
+    saveBtn.disabled = !(s.changed && !s.problem);
+    settingsMsg.textContent = s.problem;
   }
 
   function openSettings() {
@@ -807,40 +838,28 @@
     tokenInput.value = '';
     tokenInput.placeholder = qa && qa.token ? '変更するときだけ入力' : '';
     labelInput.value = qa && qa.label ? qa.label : '';
+    manualBox.open = false;
     settingsMsg.textContent = '';
+    updateSaveState();
     if (typeof settingsDlg.showModal === 'function') settingsDlg.showModal();
   }
 
   async function onSave() {
-    const endpoint = endpointInput.value.trim();
-    const token = tokenInput.value.trim() || (qa && qa.token ? qa.token : '');
-    const label = labelInput.value.trim();
-
-    if (!/^https:\/\//.test(endpoint)) {
-      settingsMsg.textContent = '窓口 URL は https:// から始まる形で入力してください。';
-      return;
-    }
-    if (!token) {
-      settingsMsg.textContent = 'トークンを入力してください。';
-      return;
-    }
-    await saveQa({ endpoint: endpoint, token: token, label: label });
-    settingsMsg.textContent = memoryOnly
-      ? 'この端末に保存できなかったため、画面を閉じるまでの一時的な保存です。'
-      : '保存しました（' + nowText() + '）。';
-    settingsInfo.textContent = describeConnection();
+    const s = manualState();
+    if (!s.changed || s.problem) { updateSaveState(); return; }
+    saveBtn.disabled = true; // 二重に押せないようにする
+    await saveQa({ endpoint: s.endpoint, token: s.token, label: s.label });
     tokenInput.value = '';
+    settingsDlg.close();
+    showToast(savedText());
     warmup();
   }
 
   async function onDelete() {
     if (!window.confirm('この端末の接続情報を削除します。よろしいですか？')) return;
     await deleteQa();
-    endpointInput.value = '';
-    tokenInput.value = '';
-    labelInput.value = '';
-    settingsInfo.textContent = describeConnection();
-    settingsMsg.textContent = '削除しました。';
+    settingsDlg.close();
+    showToast('接続情報を削除しました。');
     warmup();
   }
 
@@ -854,7 +873,9 @@
   inputEl.addEventListener('input', updateControls);
   resetBtn.addEventListener('click', resetConversation);
   settingsBtn.addEventListener('click', requestSettings);
+  importBtn.addEventListener('click', () => connFile.click());
   connFile.addEventListener('change', onConnFile);
+  [endpointInput, tokenInput, labelInput].forEach((n) => n.addEventListener('input', updateSaveState));
   saveBtn.addEventListener('click', onSave);
   deleteBtn.addEventListener('click', onDelete);
   closeSettingsBtn.addEventListener('click', () => settingsDlg.close());

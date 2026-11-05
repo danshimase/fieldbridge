@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="robots" content="noindex">
 <title>FieldBridge</title>
-<link rel="stylesheet" href="chat.css?v=2026-11-05.3">
+<link rel="stylesheet" href="chat.css?v=2026-11-05.4">
 </head>
 <body>
 
@@ -25,6 +25,8 @@
 <p class="notice">AI が資料をもとに答えています</p>
 <p id="offlineBanner" class="offline" hidden>通信できません。接続が戻ると送信できます。</p>
 
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
 <main id="log" class="log" aria-live="polite"></main>
 
 <form id="form" class="composer" autocomplete="off">
@@ -36,26 +38,31 @@
 <dialog id="settingsDlg" class="dlg">
   <form method="dialog" id="settingsForm">
     <h2>設定</h2>
-    <p id="settingsInfo" class="hint"></p>
-    <label class="field">接続ファイルから読み込む（AirDrop で受け取ったファイル）
-      <input type="file" id="connFile">
-    </label>
-    <p class="hint">または、次の欄に手入力します。</p>
-    <label class="field">窓口 URL
-      <input type="url" id="endpointInput" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://…">
-    </label>
-    <label class="field">トークン
-      <input type="password" id="tokenInput" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off">
-    </label>
-    <label class="field">ラベル
-      <input type="text" id="labelInput" autocomplete="off">
-    </label>
+    <p id="settingsInfo" class="hint hint-strong"></p>
+
+    <button type="button" id="importBtn" class="btn btn-primary btn-wide">接続ファイルを読み込む</button>
+    <input type="file" id="connFile" class="sr-only" tabindex="-1" aria-hidden="true">
+    <p class="hint">AirDrop で受け取ったファイルを選ぶと、パスフレーズの入力のあと、保存して閉じます。</p>
+
+    <details id="manualBox" class="manual">
+      <summary>手入力する（通常は不要）</summary>
+      <label class="field">窓口 URL
+        <input type="url" id="endpointInput" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://…">
+      </label>
+      <label class="field">トークン
+        <input type="password" id="tokenInput" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off">
+      </label>
+      <label class="field">ラベル
+        <input type="text" id="labelInput" autocomplete="off">
+      </label>
+      <button type="button" id="saveBtn" class="btn btn-primary btn-wide" disabled>保存して閉じる</button>
+    </details>
+
+    <p id="settingsMsg" class="hint err" role="alert"></p>
     <p class="hint">接続情報の保存先は、見学ガイドとは別です。削除しても見学ガイドには影響しません。</p>
     <p id="versionInfo" class="hint"></p>
-    <p id="settingsMsg" class="hint" role="status"></p>
     <div class="dlg-actions">
-      <button type="button" id="saveBtn" class="btn btn-primary">保存</button>
-      <button type="button" id="deleteBtn" class="btn btn-danger">削除</button>
+      <button type="button" id="deleteBtn" class="btn btn-danger">接続を削除</button>
       <button type="button" id="closeSettingsBtn" class="btn">閉じる</button>
     </div>
   </form>
@@ -82,6 +89,6 @@
   </div>
 </dialog>
 
-<script src="chat.js?v=2026-11-05.3"></script>
+<script src="chat.js?v=2026-11-05.4"></script>
 </body>
 </html>

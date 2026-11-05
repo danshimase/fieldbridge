@@ -342,3 +342,37 @@ body {
   border-radius: 8px;
 }
 .photo-caption { margin: 10px 0 0; font-size: 16px; }
+
+/* 設定画面の追加部品 */
+.btn-wide { display: block; width: 100%; margin: 10px 0; }
+.hint-strong { font-size: 16px; color: var(--text); }
+.manual {
+  margin: 12px 0;
+  padding: 4px 12px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.manual summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+/* 画面上部の通知 */
+.toast {
+  position: fixed;
+  z-index: 10;
+  left: 50%;
+  top: calc(env(safe-area-inset-top) + 76px);
+  transform: translateX(-50%);
+  max-width: min(36em, 92vw);
+  padding: 12px 18px;
+  font-size: 16px;
+  color: var(--bg);
+  background: var(--text);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+.toast[hidden] { display: none; }
