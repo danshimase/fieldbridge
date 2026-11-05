@@ -317,6 +317,19 @@ body {
   border-radius: 10px;
 }
 .hint { margin: 8px 0; font-size: 14px; color: var(--muted); }
+.hint.err { color: var(--danger); min-height: 1.4em; }
+.prompt-input {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 18px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.field input[type="file"] { font-size: 16px; padding: 8px 0; border: 0; background: transparent; }
 .dlg-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 
 .dlg-photo { width: min(60em, 96vw); }

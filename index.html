@@ -37,6 +37,10 @@
   <form method="dialog" id="settingsForm">
     <h2>設定</h2>
     <p id="settingsInfo" class="hint"></p>
+    <label class="field">接続ファイルから読み込む（AirDrop で受け取ったファイル）
+      <input type="file" id="connFile">
+    </label>
+    <p class="hint">または、次の欄に手入力します。</p>
     <label class="field">窓口 URL
       <input type="url" id="endpointInput" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://…">
     </label>
@@ -52,6 +56,19 @@
       <button type="button" id="saveBtn" class="btn btn-primary">保存</button>
       <button type="button" id="deleteBtn" class="btn btn-danger">削除</button>
       <button type="button" id="closeSettingsBtn" class="btn">閉じる</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="promptDlg" class="dlg">
+  <form id="promptForm">
+    <h2 id="promptTitle"></h2>
+    <p id="promptText" class="hint"></p>
+    <input type="password" id="promptInput" class="prompt-input" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off" aria-label="入力">
+    <p id="promptError" class="hint err" role="alert"></p>
+    <div class="dlg-actions">
+      <button type="submit" class="btn btn-primary">OK</button>
+      <button type="button" id="promptCancel" class="btn">キャンセル</button>
     </div>
   </form>
 </dialog>

@@ -20,7 +20,12 @@
     WARMUP_RETRY_MS: 4000,      // 再試行の間隔
     DB_NAME: 'tour-guide',      // 見学ガイドと共通（第8.1）
     STORE: 'kv',
-    KEY: 'qa'
+    KEY: 'qa',
+    PIN_KEY: 'pin',             // 見学ガイドの「編集用PIN」と共通
+    DEFAULT_PIN: '0000',        // 見学ガイドの app.js と同じ初期値
+    ENC_FORMAT: 'tour-enc-v1',  // 見学ガイドの暗号化ファイルと同じ形式
+    PBKDF2_ITER: 250000,        // 第5章：25万回
+    MAX_CONN_BYTES: 65536       // 接続ファイルの最大サイズ
   };
 
   const params = new URLSearchParams(location.search);
@@ -61,6 +66,14 @@
   const photoLarge = $('photoLarge');
   const photoCaption = $('photoCaption');
   const closePhotoBtn = $('closePhotoBtn');
+  const connFile = $('connFile');
+  const promptDlg = $('promptDlg');
+  const promptForm = $('promptForm');
+  const promptTitle = $('promptTitle');
+  const promptText = $('promptText');
+  const promptInput = $('promptInput');
+  const promptError = $('promptError');
+  const promptCancel = $('promptCancel');
 
   // ------------------------------------------------------------------
   // 状態（会話の履歴は端末に保存しない）
@@ -363,7 +376,12 @@
 
   async function saveQa(next) {
     // 見学ガイド側の項目を消さないよう、既存の値に重ねて保存する
-    const merged = Object.assign({}, qa || {}, next);
+    let current = qa;
+    try {
+      const v = await kvRequest('readonly', (s) => s.get(CONFIG.KEY));
+      if (v && typeof v === 'object') current = v;
+    } catch (e) { /* 読めなければ手元の値を使う */ }
+    const merged = Object.assign({}, current || {}, next);
     try {
       await kvRequest('readwrite', (s) => s.put(merged, CONFIG.KEY));
       memoryOnly = null;
@@ -563,7 +581,7 @@
     }
     if (!MOCK && (!qa || !qa.endpoint || !qa.token)) {
       addError(MSG.noConfig);
-      openSettings();
+      requestSettings();
       return;
     }
 
@@ -601,6 +619,167 @@
   // ------------------------------------------------------------------
   // 設定画面
   // ------------------------------------------------------------------
+  // ---- 暗号化ファイルの復号（見学ガイド app.js の decryptJson と同じ方式） ----
+  function b64ToBytes(b64) {
+    const bin = atob(b64);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i += 1) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  async function deriveKey(pass, salt, iterations) {
+    const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey']);
+    return crypto.subtle.deriveKey(
+      { name: 'PBKDF2', salt: salt, iterations: iterations, hash: 'SHA-256' },
+      base,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['decrypt']
+    );
+  }
+
+  async function decryptJson(env, pass) {
+    if (!env || typeof env.salt !== 'string' || typeof env.iv !== 'string' || typeof env.data !== 'string') {
+      throw new Error('bad envelope');
+    }
+    const iterations = env.iterations || CONFIG.PBKDF2_ITER;
+    // 細工されたファイルで端末が固まらないよう、回数に範囲を設ける
+    if (!Number.isInteger(iterations) || iterations < 100000 || iterations > 1000000) {
+      throw new Error('bad iterations');
+    }
+    const key = await deriveKey(pass, b64ToBytes(env.salt), iterations);
+    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64ToBytes(env.iv) }, key, b64ToBytes(env.data));
+    return JSON.parse(new TextDecoder().decode(pt));
+  }
+
+  // 復号した内容が接続ファイルとして正しいかを確認する
+  function validateConn(obj) {
+    const ok = obj && typeof obj === 'object' && obj.type === 'fieldbridge-conn' &&
+      typeof obj.endpoint === 'string' && /^https:\/\//.test(obj.endpoint.trim()) &&
+      typeof obj.token === 'string' && obj.token.trim() !== '' && obj.token.length <= 512;
+    if (!ok) throw new Error('接続ファイルの内容が正しくありません');
+    return {
+      endpoint: obj.endpoint.trim(),
+      token: obj.token.trim(),
+      label: typeof obj.label === 'string' ? obj.label.trim() : ''
+    };
+  }
+
+  // ---- 入力ダイアログ（PIN・パスフレーズ） ----
+  function promptSecret(opts) {
+    return new Promise((resolve) => {
+      promptTitle.textContent = opts.title;
+      promptText.textContent = opts.text || '';
+      promptInput.value = '';
+      promptError.textContent = '';
+      let working = false;
+
+      const cleanup = () => {
+        promptForm.removeEventListener('submit', onSubmit);
+        promptCancel.removeEventListener('click', onCancel);
+        promptDlg.removeEventListener('cancel', onCancel);
+      };
+      const onSubmit = async (ev) => {
+        ev.preventDefault();
+        if (working) return;
+        working = true;
+        try {
+          const result = await opts.validate(promptInput.value);
+          cleanup();
+          promptDlg.close();
+          resolve(result);
+        } catch (e) {
+          promptError.textContent = e && e.message ? e.message : '正しくありません';
+          promptInput.select();
+        } finally {
+          working = false;
+        }
+      };
+      const onCancel = (ev) => {
+        if (ev) ev.preventDefault();
+        cleanup();
+        promptDlg.close();
+        resolve(null);
+      };
+      promptForm.addEventListener('submit', onSubmit);
+      promptCancel.addEventListener('click', onCancel);
+      promptDlg.addEventListener('cancel', onCancel);
+      promptDlg.showModal();
+      setTimeout(() => promptInput.focus(), 50);
+    });
+  }
+
+  // 見学ガイドの「編集用PIN」（IndexedDB の pin。未設定なら 0000）で確認する
+  async function checkPin() {
+    let pin = CONFIG.DEFAULT_PIN;
+    try {
+      const v = await kvRequest('readonly', (s) => s.get(CONFIG.PIN_KEY));
+      if (typeof v === 'string' && v !== '') pin = v;
+    } catch (e) { /* 読めなければ初期値 */ }
+    const ok = await promptSecret({
+      title: '編集用PIN',
+      text: '設定を開くには PIN を入力してください。',
+      validate: async (v) => {
+        if (v !== pin) throw new Error('PINが違います');
+        return true;
+      }
+    });
+    return ok === true;
+  }
+
+  async function requestSettings() {
+    if (await checkPin()) openSettings();
+  }
+
+  async function onConnFile() {
+    const file = connFile.files && connFile.files[0];
+    connFile.value = ''; // 同じファイルをもう一度選べるようにする
+    if (!file) return;
+    settingsMsg.textContent = '';
+
+    if (file.size > CONFIG.MAX_CONN_BYTES) {
+      settingsMsg.textContent = '接続ファイルとして大きすぎます。';
+      return;
+    }
+    let env;
+    try {
+      env = JSON.parse(await file.text());
+    } catch (e) {
+      settingsMsg.textContent = 'ファイルを読み込めませんでした。';
+      return;
+    }
+    if (!env || env.format !== CONFIG.ENC_FORMAT) {
+      settingsMsg.textContent = '接続ファイルの形式ではありません。';
+      return;
+    }
+
+    const conn = await promptSecret({
+      title: '接続ファイル',
+      text: '渡されたパスフレーズを入力してください。',
+      validate: async (v) => {
+        let obj;
+        try {
+          obj = await decryptJson(env, v);
+        } catch (e) {
+          throw new Error('パスフレーズが違うか、ファイルが壊れています');
+        }
+        return validateConn(obj);
+      }
+    });
+    if (!conn) return;
+
+    await saveQa(conn);
+    endpointInput.value = conn.endpoint;
+    tokenInput.value = '';
+    tokenInput.placeholder = '変更するときだけ入力';
+    labelInput.value = conn.label;
+    settingsInfo.textContent = describeConnection();
+    settingsMsg.textContent = memoryOnly
+      ? '読み込みました。この端末に保存できなかったため、画面を閉じるまでの一時的な保存です。'
+      : '読み込んで保存しました。';
+    warmup();
+  }
+
   function describeConnection() {
     if (MOCK) return '現在は仮の応答で動いています（実際の窓口には送信しません）。';
     if (!qa || !qa.token) return '接続は未設定です。';
@@ -661,7 +840,8 @@
   });
   inputEl.addEventListener('input', updateControls);
   resetBtn.addEventListener('click', resetConversation);
-  settingsBtn.addEventListener('click', openSettings);
+  settingsBtn.addEventListener('click', requestSettings);
+  connFile.addEventListener('change', onConnFile);
   saveBtn.addEventListener('click', onSave);
   deleteBtn.addEventListener('click', onDelete);
   closeSettingsBtn.addEventListener('click', () => settingsDlg.close());
