@@ -18,7 +18,7 @@
     TIMEOUT_MS: 30000,          // 30秒で打ち切り（第8.3）
     WARMUP_RETRIES: 3,          // ウォームアップの再試行回数（第6.8）
     WARMUP_RETRY_MS: 4000,      // 再試行の間隔
-    VERSION: '2026-11-06.1',    // 画面の版（index.html の ?v= と合わせる）
+    VERSION: '2026-11-06.2',    // 画面の版（index.html の ?v= と合わせる）
     DB_NAME: 'fieldbridge',     // 接続情報の保存先。見学ガイド（tour-guide）とは別
     STORE: 'kv',
     KEY: 'qa',
@@ -1006,6 +1006,63 @@
   window.addEventListener('online', updateControls);
   window.addEventListener('offline', updateControls);
 
+  // ------------------------------------------------------------------
+  // リンクからの接続（システム解説書など）。URL の # 以降に接続と質問を入れておくと、開くだけでつながる。
+  //   #k=<base64url(JSON {endpoint, token, label})>&q=<質問>      （どちらか一方でもよい）
+  // # 以降は通信に乗らない（GitHub には届かない）。読んだらアドレス欄から消す。
+  // ------------------------------------------------------------------
+  function b64urlToText(v) {
+    let b = String(v).replace(/-/g, '+').replace(/_/g, '/');
+    while (b.length % 4) b += '=';
+    return new TextDecoder().decode(b64ToBytes(b));
+  }
+
+  // 窓口は AWS（amazonaws.com）の https だけ受け付ける。それ以外はつながない
+  function linkConnection(k) {
+    try {
+      const o = JSON.parse(b64urlToText(k));
+      const u = new URL(String(o.endpoint || ''));
+      const token = String(o.token || '');
+      if (u.protocol !== 'https:' || !/\.amazonaws\.com$/.test(u.hostname)) return null;
+      if (!token || token.length > 512) return null;
+      return { endpoint: u.origin + u.pathname.replace(/\/+$/, ''), token: token, label: String(o.label || '').slice(0, 64) };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async function applyLink() {
+    const raw = location.hash.replace(/^#/, '');
+    if (!raw) return null;
+    const p = new URLSearchParams(raw);
+    const k = p.get('k');
+    const q = (p.get('q') || '').trim();
+    if (!k && !q) return null;
+    try { window.history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* 消せなくても続ける（この画面では history は会話の履歴の変数なので window.history を使う） */ }
+    if (k) {
+      const c = linkConnection(k);
+      if (!c) {
+        showToast('リンクの接続情報が正しくないため、使いませんでした。');
+      } else if (qa && qa.token && (qa.token !== c.token || qa.endpoint !== c.endpoint) &&
+                 !window.confirm('この端末の接続を、リンクの接続に切り替えますか？\n（いまの接続：' + (qa.label || 'ラベルなし') + '）')) {
+        showToast('接続は切り替えませんでした。');
+      } else if (!qa || qa.token !== c.token || qa.endpoint !== c.endpoint) {
+        await saveQa(c);
+        showToast(savedText());
+      }
+    }
+    return q ? { q: q.slice(0, CONFIG.MAX_Q) } : null;
+  }
+
+  // すでに開いている画面に、同じ URL で # だけ違うリンクを貼ったときも同じように読む（再読み込みされないため）
+  window.addEventListener('hashchange', async () => {
+    const link = await applyLink();
+    if (link) {
+      warmup();
+      if (!busy) { inputEl.value = link.q; updateControls(); send(); }
+    }
+  });
+
   applyTheme(getTheme());
 
   (async () => {
@@ -1013,6 +1070,8 @@
     showEmptyNote();
     updateControls();
     await loadQa();
+    const link = await applyLink();
     warmup();
+    if (link) { inputEl.value = link.q; updateControls(); send(); }
   })();
 })();
