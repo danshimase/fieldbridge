@@ -18,7 +18,7 @@
     TIMEOUT_MS: 30000,          // 30秒で打ち切り（第8.3）
     WARMUP_RETRIES: 3,          // ウォームアップの再試行回数（第6.8）
     WARMUP_RETRY_MS: 4000,      // 再試行の間隔
-    VERSION: '2026-11-06.2',    // 画面の版（index.html の ?v= と合わせる）
+    VERSION: '2026-11-06.3',    // 画面の版（index.html の ?v= と合わせる）
     DB_NAME: 'fieldbridge',     // 接続情報の保存先。見学ガイド（tour-guide）とは別
     STORE: 'kv',
     KEY: 'qa',
@@ -41,6 +41,7 @@
     photoExpired: '写真の表示期限が切れました。もう一度質問してください。',
     noRecord: '資料に記録がありません。',
     sorry: 'ごめんなさい。この内容は、資料に記録がありません。',
+    preparing: '準備しています。準備ができたら自動で送ります',
     thinking: '資料を調べて考えています',
     thinkingMore: 'もう少しお待ちください'
   };
@@ -91,6 +92,8 @@
   let qa = null;           // { endpoint, token, label, ... }
   let memoryOnly = null;   // IndexedDB が使えないときの退避（メモリのみ）
   let warmupRun = 0;       // 古いウォームアップの結果を捨てるための番号
+  let warmupPromise = null; // 実行中のウォームアップ（終わると null）。質問の送信はこれを待つ
+  let warmedOk = false;    // 今回のウォームアップが「起こせた」と確認できたか（429 は確認できない扱い）
 
   // ------------------------------------------------------------------
   // 表示用の部品
@@ -305,6 +308,11 @@
     if (!n) return;
     clearTimeout(n._timer);
     n.remove();
+  }
+
+  function setPendingText(n, text) {
+    const t = n && n.querySelector('.think-text');
+    if (t) t.textContent = text;
   }
 
   const SORRY_SVG =
@@ -645,14 +653,22 @@
   // ------------------------------------------------------------------
   // ウォームアップ（画面を開いたとき1回。回数の上限には数えない）
   // ------------------------------------------------------------------
-  async function warmup() {
+  function warmup() {
+    warmedOk = false;
+    const p = doWarmup();
+    warmupPromise = p;
+    p.then(() => { if (warmupPromise === p) warmupPromise = null; });
+    return p;
+  }
+
+  async function doWarmup() {
     warmupRun += 1;
     const run = warmupRun;
     setStatus('wait', '準備中');
 
     if (MOCK) {
       await sleep(1200);
-      if (run === warmupRun) setStatus('ready', '準備できました');
+      if (run === warmupRun) { warmedOk = true; setStatus('ready', '準備できました'); }
       return;
     }
     if (!qa || !qa.endpoint || !qa.token) {
@@ -663,7 +679,7 @@
     for (let attempt = 0; attempt <= CONFIG.WARMUP_RETRIES; attempt += 1) {
       try {
         await withTimeout((signal) => realFetch('/warmup', {}, signal));
-        if (run === warmupRun) setStatus('ready', '準備できました');
+        if (run === warmupRun) { warmedOk = true; setStatus('ready', '準備できました'); }
         return;
       } catch (e) {
         if (run !== warmupRun) return;
@@ -705,7 +721,21 @@
     const pending = addPending();
 
     try {
-      const res = await ask(q, sentHistory);
+      // 準備中に送られた質問は、準備が終わるまで待ってから送る
+      if (warmupPromise) {
+        setPendingText(pending, MSG.preparing);
+        await warmupPromise;
+        setPendingText(pending, MSG.thinking);
+      }
+      let res;
+      try {
+        res = await ask(q, sentHistory);
+      } catch (e) {
+        // 起こせたと確認できていないとき、時間切れ・サーバー側の失敗は DB が起動中だった可能性がある。1回だけ送り直す
+        const k = e && e.kind;
+        if (MOCK || warmedOk || (k !== 'timeout' && k !== 'server')) throw e;
+        res = await ask(q, sentHistory);
+      }
       removePending(pending);
       addNote(res.interpreted);
       addBot(res);
